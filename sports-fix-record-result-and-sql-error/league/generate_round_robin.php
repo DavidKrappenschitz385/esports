@@ -49,7 +49,33 @@ if ($check_stmt->fetchColumn() > 0) {
 
 // Use LeagueManager to generate matches
 $leagueManager = new LeagueManager();
-$generated_matches = $leagueManager->generateRoundRobin($teams);
+
+// Respect the number of round-robin rounds from league settings
+$rounds = isset($league['round_robin_rounds']) ? (int)$league['round_robin_rounds'] : 1;
+if ($rounds < 1) $rounds = 1;
+
+$generated_matches = [];
+for ($i = 0; $i < $rounds; $i++) {
+    $round_matches = $leagueManager->generateRoundRobin($teams);
+
+    // Adjust round numbers for subsequent sets of round-robin
+    if ($i > 0) {
+        $max_round_so_far = 0;
+        foreach ($generated_matches as $m) {
+            if ($m['round'] > $max_round_so_far) $max_round_so_far = $m['round'];
+        }
+        foreach ($round_matches as &$m) {
+            $m['round'] += $max_round_so_far;
+            // Swap home/away for even numbered rounds (optional, but good for fairness)
+            if ($i % 2 != 0) {
+                $temp = $m['teamA'];
+                $m['teamA'] = $m['teamB'];
+                $m['teamB'] = $temp;
+            }
+        }
+    }
+    $generated_matches = array_merge($generated_matches, $round_matches);
+}
 
 // Save the matches to the database
 try {

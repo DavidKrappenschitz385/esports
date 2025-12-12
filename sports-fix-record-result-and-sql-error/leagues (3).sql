@@ -40,7 +40,13 @@ CREATE TABLE `leagues` (
   `status` enum('draft','open','closed','active','completed') DEFAULT 'draft',
   `approval_required` tinyint(1) DEFAULT 0,
   `created_by` int(11) NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `points_per_win` float DEFAULT 1,
+  `points_per_draw` float DEFAULT 0.5,
+  `points_per_loss` float DEFAULT 0,
+  `league_type` enum('round_robin','single_elimination','double_elimination') DEFAULT 'round_robin',
+  `round_robin_rounds` int(11) DEFAULT 1,
+  `knockout_teams` int(11) DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -83,7 +89,9 @@ CREATE TABLE `matches` (
   `away_score` int(11) DEFAULT NULL,
   `status` enum('scheduled','in_progress','completed','cancelled','postponed') DEFAULT 'scheduled',
   `notes` text DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `match_type` enum('round_robin','quarter_final','semi_final','final','playoff') DEFAULT 'round_robin',
+  `bracket_pos` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -641,7 +649,9 @@ CREATE TABLE `teams` (
   `points` int(11) DEFAULT 0,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `goals_for` int(11) DEFAULT 0,
-  `goals_against` int(11) DEFAULT 0
+  `goals_against` int(11) DEFAULT 0,
+  `matches_played` int(11) DEFAULT 0,
+  `score_difference` int(11) DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
