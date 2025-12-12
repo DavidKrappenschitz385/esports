@@ -49,40 +49,91 @@ if ($_POST && isset($_POST['create_schedule'])) {
     if ($team_count < 2) {
         $error = "Need at least 2 teams to create a schedule!";
     } else {
-        // Create round-robin schedule
-        $match_date = new DateTime($start_date);
-        $match_counter = 0;
+        // Check if schedule already exists
+        $matches_query = "SELECT COUNT(*) FROM matches WHERE league_id = :league_id AND match_type = 'round_robin'";
+        $matches_stmt = $db->prepare($matches_query);
+        $matches_stmt->bindParam(':league_id', $league_id);
+        $matches_stmt->execute();
+        $current_match_count = $matches_stmt->fetchColumn();
 
-        // Generate all possible match combinations
-        for ($i = 0; $i < $team_count; $i++) {
-            for ($j = $i + 1; $j < $team_count; $j++) {
-                $home_team = $teams[$i];
-                $away_team = $teams[$j];
+        $round_robin_rounds = $league['round_robin_rounds'] ?? 1;
+        $matches_per_round = $team_count * ($team_count - 1) / 2;
+        $total_expected_matches = $matches_per_round * $round_robin_rounds;
 
-                // Assign venue (cycle through available venues)
-                $venue = $venues[$match_counter % count($venues)];
+        if ($current_match_count >= $total_expected_matches) {
+            showMessage("Round Robin schedule is already full ($current_match_count matches). Cannot schedule more matches.", "error");
+        } else {
+            // Create round-robin schedule
+            $match_date = new DateTime($start_date);
+            $match_counter = 0;
+            $matches_generated = 0;
 
-                $insert_query = "INSERT INTO matches (league_id, home_team_id, away_team_id, venue_id, match_date)
-                                VALUES (:league_id, :home_team_id, :away_team_id, :venue_id, :match_date)";
-                $insert_stmt = $db->prepare($insert_query);
-                $insert_stmt->bindParam(':league_id', $league_id);
-                $insert_stmt->bindParam(':home_team_id', $home_team['id']);
-                $insert_stmt->bindParam(':away_team_id', $away_team['id']);
-                $insert_stmt->bindParam(':venue_id', $venue['id']);
-                $insert_stmt->bindParam(':match_date', $match_date->format('Y-m-d H:i:s'));
-                $insert_stmt->execute();
+            // Generate matches for each round
+            for ($round = 1; $round <= $round_robin_rounds; $round++) {
 
-                $match_counter++;
+                // Check if matches for this round already exist
+                $round_check_query = "SELECT COUNT(*) FROM matches WHERE league_id = :league_id AND round = :round AND match_type = 'round_robin'";
+                $round_check_stmt = $db->prepare($round_check_query);
+                $round_check_stmt->bindParam(':league_id', $league_id);
+                $round_check_stmt->bindParam(':round', $round);
+                $round_check_stmt->execute();
 
-                // Move to next date if we've reached matches per day limit
-                if ($match_counter % $matches_per_day == 0) {
-                    $match_date->add(new DateInterval('P' . $match_interval . 'D'));
+                if ($round_check_stmt->fetchColumn() > 0) {
+                    // Skip existing round
+                    continue;
+                }
+
+                // For each round, generate all pairings
+                for ($i = 0; $i < $team_count; $i++) {
+                    for ($j = $i + 1; $j < $team_count; $j++) {
+                        // Alternate home/away based on round number
+                        // Odd rounds: i vs j
+                        // Even rounds: j vs i
+                        if ($round % 2 != 0) {
+                            $home_team = $teams[$i];
+                            $away_team = $teams[$j];
+                        } else {
+                            $home_team = $teams[$j];
+                            $away_team = $teams[$i];
+                        }
+
+                        // Assign venue (cycle through available venues)
+                        $venue_id = null;
+                        if (!empty($venues)) {
+                            // Use total matches + generated so far to cycle venues, so we don't always start with venue 1
+                            $venue = $venues[($current_match_count + $matches_generated) % count($venues)];
+                            $venue_id = $venue['id'];
+                        }
+
+                        $insert_query = "INSERT INTO matches (league_id, home_team_id, away_team_id, venue_id, match_date, round, match_type)
+                                        VALUES (:league_id, :home_team_id, :away_team_id, :venue_id, :match_date, :round, 'round_robin')";
+                        $insert_stmt = $db->prepare($insert_query);
+                        $insert_stmt->bindParam(':league_id', $league_id);
+                        $insert_stmt->bindParam(':home_team_id', $home_team['id']);
+                        $insert_stmt->bindParam(':away_team_id', $away_team['id']);
+                        $insert_stmt->bindParam(':venue_id', $venue_id);
+                        $insert_stmt->bindParam(':match_date', $match_date->format('Y-m-d H:i:s'));
+                        $insert_stmt->bindParam(':round', $round);
+                        $insert_stmt->execute();
+
+                        $match_counter++;
+                        $matches_generated++;
+
+                        // Move to next date if we've reached matches per day limit
+                        if ($match_counter % $matches_per_day == 0) {
+                            $match_date->add(new DateInterval('P' . $match_interval . 'D'));
+                        }
+                    }
                 }
             }
-        }
 
-        showMessage("Schedule created successfully! $match_counter matches scheduled.", "success");
-        redirect('view_league.php?id=' . $league_id);
+            if ($matches_generated > 0) {
+                showMessage("Schedule updated successfully! $matches_generated new matches scheduled.", "success");
+            } else {
+                showMessage("No new matches were scheduled. All rounds appear to be complete.", "warning");
+            }
+            redirect('view_league.php?id=' . $league_id);
+        }
     }
 }
 
@@ -98,6 +149,21 @@ $matches_stmt = $db->prepare($matches_query);
 $matches_stmt->bindParam(':league_id', $league_id);
 $matches_stmt->execute();
 $existing_matches = $matches_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Calculate expected matches
+$team_count = count($teams);
+$round_robin_rounds = $league['round_robin_rounds'] ?? 1;
+$matches_per_round = ($team_count >= 2) ? ($team_count * ($team_count - 1) / 2) : 0;
+$total_expected_matches = $matches_per_round * $round_robin_rounds;
+
+$current_rr_match_count = 0;
+foreach ($existing_matches as $m) {
+    if (($m['match_type'] ?? 'round_robin') == 'round_robin') {
+        $current_rr_match_count++;
+    }
+}
+
+$schedule_full = ($current_rr_match_count >= $total_expected_matches && $total_expected_matches > 0);
 ?>
 
 <!DOCTYPE html>
@@ -131,11 +197,16 @@ $existing_matches = $matches_stmt->fetchAll(PDO::FETCH_ASSOC);
         <div class="info-box">
             <p><strong>League:</strong> <?php echo htmlspecialchars($league['name']); ?> (<?php echo htmlspecialchars($league['sport_name']); ?>)</p>
             <p><strong>Teams:</strong> <?php echo count($teams); ?></p>
-            <p><strong>Potential Matches:</strong> <?php echo count($teams) * (count($teams) - 1) / 2; ?> (round-robin)</p>
-            <p><strong>Current Matches:</strong> <?php echo count($existing_matches); ?></p>
+            <p><strong>Rounds:</strong> <?php echo $round_robin_rounds; ?> (<?php echo $round_robin_rounds == 1 ? 'Single' : ($round_robin_rounds == 2 ? 'Double' : $round_robin_rounds . ' Rounds'); ?>)</p>
+            <p><strong>Potential Matches:</strong> <?php echo $total_expected_matches; ?></p>
+            <p><strong>Current Matches:</strong> <?php echo $current_rr_match_count; ?></p>
         </div>
 
-        <?php if (count($teams) >= 2): ?>
+        <?php if ($schedule_full): ?>
+            <div class="info-box" style="background: #d4edda; border-color: #c3e6cb; color: #155724;">
+                <p><strong>Schedule Complete:</strong> All round-robin matches (<?php echo $total_expected_matches; ?> matches) have been scheduled.</p>
+            </div>
+        <?php elseif (count($teams) >= 2): ?>
         <div class="form-section">
             <h3>Create Round-Robin Schedule</h3>
             <form method="POST">

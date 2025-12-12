@@ -129,8 +129,13 @@ $sports = $sports_stmt->fetchAll(PDO::FETCH_ASSOC);
             </div>
 
             <div class="form-group">
-                <label>Round Robin Rounds (if applicable):</label>
-                <input type="number" name="round_robin_rounds" value="1" min="1" max="4">
+                <label>Round Robin Schedule:</label>
+                <select name="round_robin_rounds">
+                    <option value="1">Single Round Robin (Every team plays once)</option>
+                    <option value="2">Double Round Robin (Home & Away)</option>
+                    <option value="3">Triple Round Robin</option>
+                    <option value="4">Quadruple Round Robin</option>
+                </select>
             </div>
 
             <div class="form-group">
