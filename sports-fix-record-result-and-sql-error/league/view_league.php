@@ -759,12 +759,18 @@ $can_register = !$user_team && !$pending_request && !$is_full && !$deadline_pass
                         Admin Panel
                     </a>
                     <?php if (($league['status'] == 'active' || $league['status'] == 'completed') && $is_round_robin_done): ?>
-                        <a href="generate_playoffs.php?id=<?php echo $league['id']; ?>" class="btn btn-danger" onclick="return confirm('Generate playoffs? This will create new matches based on current standings.')">
-                            Generate Playoffs
-                        </a>
+                        <?php if (($league['knockout_teams'] ?? 0) > 0): ?>
+                            <a href="generate_playoffs.php?id=<?php echo $league['id']; ?>" class="btn btn-danger" onclick="return confirm('Generate playoffs? This will create new matches based on current standings.')">
+                                Generate Playoffs
+                            </a>
+                        <?php else: ?>
+                            <button class="btn btn-secondary" disabled title="No playoffs configured. Go to Edit League to enable playoffs.">
+                                Generate Playoffs (Not Configured)
+                            </button>
+                        <?php endif; ?>
                     <?php elseif (($league['status'] == 'active' || $league['status'] == 'completed') && !$is_round_robin_done): ?>
-                        <button class="btn btn-secondary" disabled title="Complete all round robin matches first">
-                            Generate Playoffs (Round Robin Incomplete)
+                        <button class="btn btn-secondary" disabled title="Complete all round robin matches first (<?php echo $completed_rr_matches; ?>/<?php echo $total_expected_rr_matches; ?> matches)">
+                            Generate Playoffs (Round Robin Incomplete: <?php echo $completed_rr_matches; ?>/<?php echo $total_expected_rr_matches; ?>)
                         </button>
                     <?php endif; ?>
                 <?php endif; ?>
@@ -1084,6 +1090,9 @@ $can_register = !$user_team && !$pending_request && !$is_full && !$deadline_pass
                             <p style="margin-bottom: 0.5rem;"><strong>Registration Deadline:</strong> <?php echo date('M j, Y', strtotime($league['registration_deadline'])); ?></p>
                             <p style="margin-bottom: 0.5rem;"><strong>Maximum Teams:</strong> <?php echo $league['max_teams']; ?></p>
                             <p style="margin-bottom: 0.5rem;"><strong>Max Players per Team:</strong> <?php echo $league['max_players_per_team']; ?></p>
+                            <p style="margin-bottom: 0.5rem;"><strong>League Format:</strong> <?php echo ucfirst(str_replace('_', ' ', $league['league_type'] ?? 'round_robin')); ?></p>
+                            <p style="margin-bottom: 0.5rem;"><strong>Round Robin Rounds:</strong> <?php echo $league['round_robin_rounds'] ?? 1; ?></p>
+                            <p style="margin-bottom: 0.5rem;"><strong>Playoff Teams:</strong> <?php echo $league['knockout_teams'] ?? 0; ?></p>
                             <p style="margin-bottom: 0.5rem;"><strong>Created by:</strong> <?php echo htmlspecialchars($league['creator_first'] . ' ' . $league['creator_last']); ?></p>
                             <p><strong>Created on:</strong> <?php echo date('M j, Y g:i A', strtotime($league['created_at'])); ?></p>
                         </div>
