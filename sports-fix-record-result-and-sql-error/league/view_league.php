@@ -747,6 +747,11 @@ $can_register = !$user_team && !$pending_request && !$is_full && !$deadline_pass
                     <a href="../admin/manage_leagues.php" class="btn btn-primary">
                         Admin Panel
                     </a>
+                    <?php if ($league['status'] == 'active' || $league['status'] == 'completed'): ?>
+                        <a href="generate_playoffs.php?id=<?php echo $league['id']; ?>" class="btn btn-danger" onclick="return confirm('Generate playoffs? This will create new matches based on current standings.')">
+                            Generate Playoffs
+                        </a>
+                    <?php endif; ?>
                 <?php endif; ?>
             </div>
         </div>

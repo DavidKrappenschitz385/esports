@@ -317,6 +317,64 @@ class LeagueManager {
 
     // --- Additional Formats Placeholders ---
 
+    public function generatePlayoffs($league_id) {
+        // Fetch qualified teams
+        $league_query = "SELECT knockout_teams FROM leagues WHERE id = :league_id";
+        $stmt = $this->db->prepare($league_query);
+        $stmt->bindParam(':league_id', $league_id);
+        $stmt->execute();
+        $config = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        $num_qualified = $config['knockout_teams'] ?? 0;
+        if ($num_qualified == 0) return []; // No playoffs configured
+
+        $standings = $this->getStandings($league_id);
+        $qualified_teams = array_slice($standings, 0, $num_qualified);
+
+        // Seed teams: 1 vs 8, 2 vs 7, etc. (standard snake)
+        // Or standard bracket: 1 vs 8, 4 vs 5, 2 vs 7, 3 vs 6
+        // Let's implement standard bracket seeding for top 4 or 8.
+
+        $matches = [];
+
+        if ($num_qualified == 4) {
+             // Semis: 1 vs 4, 2 vs 3
+             $matches[] = [
+                 'home_team_id' => $qualified_teams[0]['id'],
+                 'away_team_id' => $qualified_teams[3]['id'],
+                 'round' => 1, // Round 1 of playoffs
+                 'match_type' => 'semi_final',
+                 'bracket_pos' => 1
+             ];
+             $matches[] = [
+                 'home_team_id' => $qualified_teams[1]['id'],
+                 'away_team_id' => $qualified_teams[2]['id'],
+                 'round' => 1,
+                 'match_type' => 'semi_final',
+                 'bracket_pos' => 2
+             ];
+        } elseif ($num_qualified == 8) {
+            // Quarters
+            // Match 1: 1 vs 8
+            // Match 2: 4 vs 5
+            // Match 3: 2 vs 7
+            // Match 4: 3 vs 6
+            $pairings = [[0, 7], [3, 4], [1, 6], [2, 5]];
+            $pos = 1;
+            foreach ($pairings as $pair) {
+                $matches[] = [
+                    'home_team_id' => $qualified_teams[$pair[0]]['id'],
+                    'away_team_id' => $qualified_teams[$pair[1]]['id'],
+                    'round' => 1,
+                    'match_type' => 'quarter_final',
+                    'bracket_pos' => $pos++
+                ];
+            }
+        }
+
+        return $matches;
+    }
+
     public function generateSingleElimination($teams) {
         // Logic for bracket generation
         // 1. Determine power of 2 size (2, 4, 8, 16...)
