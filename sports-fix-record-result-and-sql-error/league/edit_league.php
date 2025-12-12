@@ -107,17 +107,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_league'])) {
         $update_stmt->bindParam(':rules', $rules);
         $update_stmt->bindParam(':status', $status);
         $update_stmt->bindParam(':league_type', $league_type);
-        $update_stmt->bindParam(':round_robin_rounds', $round_robin_rounds);
-        $update_stmt->bindParam(':knockout_teams', $knockout_teams);
+        // Explicitly bind integers
+        $update_stmt->bindValue(':round_robin_rounds', (int)$round_robin_rounds, PDO::PARAM_INT);
+        $update_stmt->bindValue(':knockout_teams', (int)$knockout_teams, PDO::PARAM_INT);
         $update_stmt->bindParam(':id', $league_id);
 
         if ($update_stmt->execute()) {
             showMessage("League updated successfully!", "success");
             redirect('view_league.php?id=' . $league_id);
         } else {
-            $errors[] = "Failed to update league!";
+            $errors[] = "Failed to update league! Error: " . implode(" ", $update_stmt->errorInfo());
         }
     }
+
+    // If we're here, it means there were errors.
+    // Overwrite $league values with submitted POST values so the form remembers user input.
+    $league['name'] = $name;
+    $league['sport_id'] = $sport_id;
+    $league['season'] = $season;
+    $league['start_date'] = $start_date;
+    $league['end_date'] = $end_date;
+    $league['registration_deadline'] = $registration_deadline;
+    $league['max_teams'] = $max_teams;
+    $league['rules'] = $rules;
+    $league['status'] = $status;
+    $league['league_type'] = $league_type;
+    $league['round_robin_rounds'] = $round_robin_rounds;
+    $league['knockout_teams'] = $knockout_teams;
 }
 
 // Get sports for dropdown
